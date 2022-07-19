@@ -1,0 +1,9 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/layer/code/bobbycar-project'
+make: Leaving directory '/home/layer/code/bobbycar-project'
+ 
+Makefile:8: /make/project.mk: No such file or directory
+make: *** No rule to make target '/make/project.mk'.
+make: Failed to remake makefile '/make/project.mk'.
+make: *** No targets.  Stop.
+
