@@ -103,9 +103,6 @@ float calc_steering_eagle(int inval)
 static inline float pow2(float x){
   return x*x;
 }
-static inline int round_f2i(float x){
-  return (int)x + (int)(x-(float)((int)x)*2);
-}
 
 #define L_WHEELBASE2 (L_WHEELBASE * L_WHEELBASE)
 
