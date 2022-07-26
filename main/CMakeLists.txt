@@ -5,9 +5,9 @@ set(requires "bluepad32")
 # See: https://gitlab.com/ricardoquesada/bluepad32/-/issues/9
 if(DEFINED ENV{BLUEPAD32_ARDUINO})
     list(APPEND srcs "arduino_main.cpp")
-    list(APPEND requires "bluepad32_arduino" "arduino" "EspSoftwareSerial" "Adafruit_SSD1306" "Adafruit_GFX_Library" "bbcar_math")
+    list(APPEND requires "bluepad32_arduino" "arduino" "EspSoftwareSerial" "Adafruit_SSD1306" "Adafruit_GFX_Library" "crc32")
 endif()
 
-idf_component_register(SRCS "${srcs}"
+idf_component_register(SRCS "display_oled.cpp" "inputreader.c" "math_functions.c" "${srcs}"
                     INCLUDE_DIRS "."
                     REQUIRES "${requires}")

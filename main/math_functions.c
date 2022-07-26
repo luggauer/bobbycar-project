@@ -49,6 +49,19 @@ int clean_adc_full(uint32_t inval)
   return abs_outval * THROTTLE_MAX / (ADC_MAX - ADC_MID - DEAD_ZONE * 3 / 2) * sign(outval);
 }
 
+int clean_adc_steering(uint32_t inval)
+{
+  int outval = (int)(inval) - STR_MID;
+  int abs_outval = abs(outval);
+  if (abs_outval < (DEAD_ZONE / 2)) // deadzone
+    return 0;
+  else
+    abs_outval -= (DEAD_ZONE / 2);
+  if (abs_outval > (STR_RANGE - DEAD_ZONE * 3 / 2))
+    return STR_MAX * sign(outval);
+  return abs_outval * STR_MAX / (STR_RANGE - DEAD_ZONE * 3 / 2) * sign(outval);
+}
+
 int clean_adc_half(uint32_t inval)
 {
   int outval = (uint32_t)inval;
@@ -87,8 +100,31 @@ float calc_steering_eagle(int inval)
   return (float)inval * STEERING_EAGLE_FACTOR;
 }
 
-void calc_torque_per_wheel(int throttle, float steering_eagle, int *torque)
+static inline float pow2(float x){
+  return x*x;
+}
+static inline int round_f2i(float x){
+  return (int)x + (int)(x-(float)((int)x)*2);
+}
+
+#define L_WHEELBASE2 (L_WHEELBASE * L_WHEELBASE)
+
+void calc_torque_per_wheel(int throttle, float alpha_steer, int *torque)
 {
+  float V_bw = L_WHEELBASE/tan(fabs(alpha_steer));
+  float V_bw_0 = (V_bw + L_WIDTH/2.0*sign(alpha_steer)) / V_bw; //torque[2] 
+  float V_bw_1= (V_bw - L_WIDTH/2.0*sign(alpha_steer)) / V_bw; //torque[3] 
+
+  float V_fw_0 = (sqrt(pow2(V_bw + (L_STEERING_WIDTH/2.0)*sign(alpha_steer))+L_WHEELBASE2)+L_STEERING_TO_WHEEL)/V_bw; //torque[0] 
+  float V_fw_1 = (sqrt(pow2(V_bw - (L_STEERING_WIDTH/2.0)*sign(alpha_steer))+L_WHEELBASE2)+L_STEERING_TO_WHEEL)/V_bw; //torque[1]
+
+  float correction_factor = 4.0/(V_bw_0+V_bw_1+V_fw_0+V_fw_1);
+  torque[0] = round((float)throttle*V_fw_0*correction_factor);
+  torque[1] = round((float)throttle*V_fw_1*correction_factor);
+  torque[2] = round((float)throttle*V_bw_0*correction_factor);
+  torque[3] = round((float)throttle*V_bw_1*correction_factor);
+  
+  if(alpha_steer == 0.0f)
     torque[0] = torque[1] = torque[2] = torque[3] = throttle;
 }
 

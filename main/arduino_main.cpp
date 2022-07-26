@@ -106,23 +106,20 @@ void scan_i2c(){
   }  
 }
 
-void draw(void) {
+void draw_line(const char* in, int y) {
   display.clearDisplay();
 
   display.setTextSize(1);      // Normal 1:1 pixel scale
   display.setTextColor(SSD1306_WHITE); // Draw white text
-  display.setCursor(0, 0);     // Start at top-left corner
+  display.setCursor(0, y);     // Start at top-left corner
   display.cp437(true);         // Use full 256 char 'Code Page 437' font
 
   // Not all the characters will fit on the display. This is normal.
   // Library will draw what it can and the rest will be clipped.
-  for(int16_t i=0; i<256; i++) {
-    if(i == '\n') display.write(' ');
-    else          display.write(i);
-  }
-
+  for(int16_t i=0; in[i]; i++)
+    display.write(in[i]);
+  
   display.display();
-  delay(2000);
 }
 
 void testscrolltext(void) {
@@ -285,7 +282,8 @@ void setup() {
     // Calling "forgetBluetoothKeys" in setup() just as an example.
     // Forgetting Bluetooth keys prevents "paired" gamepads to reconnect.
     // But might also fix some connection / re-connection issues.
-    BP32.forgetBluetoothKeys();
+    //BP32.forgetBluetoothKeys();
+    BP32.enableNewBluetoothConnections(true);
 }
 
 
@@ -396,6 +394,7 @@ int speed_per_wheel[4];
 int speed;
 int send_cnt = 0;
 // Arduino loop function. Runs in CPU 1
+char sprint_buffer[256];
 void loop() {
   int a0;
   unsigned long timeNow = millis();
@@ -415,7 +414,11 @@ void loop() {
   calc_torque_per_wheel(throttle, steering, torgue);
   Send(&HoverSerial_front, torgue[0], torgue[1]);
   Send(&HoverSerial_rear, torgue[2], torgue[3]);
-  printf("Set: Throttle: %i  steering: %i  torgue: %i %i %i %i\n",throttle,a0,torgue[0],torgue[1],torgue[2],torgue[3]);
+  if (!((send_cnt++) % 20)){
+    sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i  \t  %i\n%i  \t  %i\n",throttle,steering*45/M_PI_4,torgue[0],torgue[1],torgue[2],torgue[3]);
+    display.clearDisplay();
+    draw_line(sprint_buffer, 0);
+  }
   // Blink the LED
   digitalWrite(LED_BUILTIN, (timeNow % 2000) < 1000);
   if ((send_cnt++) % 7)
@@ -498,6 +501,7 @@ void loop() {
           // For all the available functions.
       }
   }
+  
 
-    //delay(150);
+  delay(150);
 }
