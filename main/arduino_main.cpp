@@ -275,8 +275,8 @@ void setup() {
     init_buffer();
     display_init();
     // Setup the Bluepad32 callbacks
+    //BP32.forgetBluetoothKeys();
     BP32.setup(&onConnectedGamepad, &onDisconnectedGamepad);
-
     // "forgetBluetoothKeys()" should be called when the user performs
     // a "device factory reset", or similar.
     // Calling "forgetBluetoothKeys" in setup() just as an example.
@@ -388,18 +388,20 @@ bool Receive(SoftwareSerial *board, SerialFeedback *out)
 
 SerialFeedback SerialFeedback_front;
 SerialFeedback SerialFeedback_rear;
-
+bool controller = false;
 int torgue[4];
 int speed_per_wheel[4];
 int speed;
 int send_cnt = 0;
 // Arduino loop function. Runs in CPU 1
 char sprint_buffer[256];
+int16_t pad_steering;
+uint16_t pad_throttle, pad_brake;
 void loop() {
   int a0;
   unsigned long timeNow = millis();
   int throttle = throttle_calc(clean_adc_full(value_buffer(analogRead(THROTTLE0_PIN),0)));
-  float steering = calc_steering_eagle(clean_adc_full(a0 = value_buffer(analogRead(STEERING_PIN),1)));
+  float steering = calc_steering_eagle(clean_adc_steering(a0 = value_buffer(analogRead(STEERING_PIN),1)));
   // Check for new received data
   //if(Receive(&HoverSerial_front, &SerialFeedback_front) || Receive(&HoverSerial_rear, &SerialFeedback_rear)){
   //  speed_per_wheel[0] = SerialFeedback_front.speedL_meas;
@@ -411,11 +413,14 @@ void loop() {
   if (iTimeSend > timeNow)
     return;
   iTimeSend = timeNow + TIME_SEND;
-  calc_torque_per_wheel(throttle, steering, torgue);
+  if(!controller)
+    calc_torque_per_wheel(throttle, steering, torgue);
+  else  
+    calc_torque_per_wheel(pad_throttle-pad_brake, pad_steering*2, torgue);
   Send(&HoverSerial_front, torgue[0], torgue[1]);
   Send(&HoverSerial_rear, torgue[2], torgue[3]);
   if (!((send_cnt++) % 20)){
-    sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i  \t  %i\n%i  \t  %i\n",throttle,steering*45/M_PI_4,torgue[0],torgue[1],torgue[2],torgue[3]);
+    sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i  \t  %i\n%i  \t  %i\n%i: S%i B%i T%i",throttle,steering*45/M_PI_4,torgue[0],torgue[1],torgue[2],torgue[3],controller,pad_steering,pad_brake,pad_throttle);
     display.clearDisplay();
     draw_line(sprint_buffer, 0);
   }
@@ -424,17 +429,14 @@ void loop() {
   if ((send_cnt++) % 7)
     return;
   BP32.update();
-  // This call fetches all the gamepad info from the NINA (ESP32) module.
-  // Just call this function in your main loop.
-  // The gamepads pointer (the ones received in the callbacks) gets updated
-  // automatically.
-
-  // It is safe to always do this before using the gamepad API.
-  // This guarantees that the gamepad is valid and connected.
   for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
       GamepadPtr myGamepad = myGamepads[i];
-
       if (myGamepad && myGamepad->isConnected()) {
+              if(myGamepad->x())
+                controller = !controller;
+              pad_steering = myGamepad->axisX();
+              pad_brake = myGamepad->brake();       // (0 - 1023): brake button
+              pad_throttle = myGamepad->throttle();    // (0 - 1023): throttle (AKA gas) button
           // There are different ways to query whether a button is pressed.
           // By query each button individually:
           //  a(), b(), x(), y(), l1(), etc...

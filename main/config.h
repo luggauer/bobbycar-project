@@ -1,9 +1,11 @@
+#pragma once
+
 #define ADC_MIN 0                  // min ADC1-value while poti at minimum-position (0 - 1023)
 #define ADC_MAX ((1 << 12) -1)               // max ADC1-value while poti at maximum-position (0 - 1023)
 #define ADC_MID (ADC_MAX / 2)
 #define DEAD_ZONE 64
 
-#define STR_MID (ADC_MID+100)
+#define STR_MID (ADC_MID-100)
 #define STR_RANGE (ADC_MID*10/9)
 
 #define STEERING_EAGLE_FACTOR (M_PI_4/1000.0f)

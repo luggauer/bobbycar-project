@@ -1,3 +1,5 @@
+#pragma once
+
 #define ABS(a) (((a) < 0.0) ? -(a) : (a))
 #define LIMIT(x, lowhigh) (((x) > (lowhigh)) ? (lowhigh) : (((x) < (-lowhigh)) ? (-lowhigh) : (x)))
 #define SAT(x, lowhigh) (((x) > (lowhigh)) ? (1.0) : (((x) < (-lowhigh)) ? (-1.0) : (0.0)))
