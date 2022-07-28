@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 3.5)
 
-idf_component_register(SRCS "src/SBUS2.cpp" "SBUS_usart_ESP32.cpp" 
+idf_component_register(SRCS "src/SBUS2.cpp" "src/SBUS_usart_ESP32.cpp" 
                        INCLUDE_DIRS "src"
                        REQUIRES arduino)
 
