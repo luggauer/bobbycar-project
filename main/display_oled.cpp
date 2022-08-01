@@ -1,15 +1,11 @@
 #include "display_oled.hpp"
+#include <stdlib.h>
 
 display_oled::display_oled(TwoWire *bus, char adr){
     if(!(dsp_connected = display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)))
         printf("SSD1306 allocation failed");
     else
         oled.display();
-    print_init();
-}
-
-void display_oled::print_init(){
-
 }
 
 void display_oled::draw_console_line(char* line){
@@ -35,7 +31,7 @@ void display_oled::draw_screen(int throttle, float steering, float desired_steer
     draw_line(sprint_buffer, 0);
 }
 void display_oled::set_state(STATES_OF_DISPLAY hstate){
-    if(get_state() != hstate)
+    if(display::set_state(hstate)){
         switch (hstate)
         {
         case OFF:
@@ -54,11 +50,21 @@ void display_oled::set_state(STATES_OF_DISPLAY hstate){
         default:
             break;
         }
-  oled.setTextSize(1);      // Normal 1:1 pixel scale
-  oled.setTextColor(SSD1306_WHITE); // Draw white text
-  oled.cp437(true);         // Use full 256 char 'Code Page 437' font
+    return true;
+  }
+  else{
+    return false;
+  }
 }
 
-void display_oled::draw_menu(int options, char* option_name[], int highlight);
-void display_oled::draw_menu_w_selection(int options, char* option_name[], int highlight, char* selection);
-void display_oled::draw_confirmation(char* text, int options, char* option_name[], int highlight);
+void display_oled::draw_menu(int options, char* option_name[], int highlight){
+
+}
+
+void display_oled::draw_menu_w_selection(int options, char* option_name[], int highlight, char* selection){
+
+}
+
+void display_oled::draw_confirmation(char* text, int options, char* option_name[], int highlight){
+
+}

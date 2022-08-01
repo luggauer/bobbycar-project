@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Wire.h>
+#include <stdbool.h>
 
 typedef enum{IDLE, OFF, STATUS, CONSOLE} STATES_OF_DISPLAY;
 
@@ -9,14 +10,13 @@ class display{
         STATES_OF_DISPLAY state;
         char* buffer;
     protected:
-        void set_state(STATES_OF_DISPLAY hstate);
+        virtual bool set_state(STATES_OF_DISPLAY hstate);
         TwoWire *i2c_bus;
         char address;
-        virtual void print_init();
     public:
-        STATES_OF_DISPLAY get_state();
+        virtual STATES_OF_DISPLAY get_state();
         virtual void draw_console_line(char* line);
-        display(TwoWire *bus, char adr);
+        virtual display(TwoWire *bus, char adr);
         virtual ~display();
         virtual void clear();
         virtual void set_state(bool on);
