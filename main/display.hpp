@@ -24,4 +24,4 @@ class display{
         virtual void draw_menu(int options, char* option_name[], int highlight);
         virtual void draw_menu_w_selection(int options, char* option_name[], int highlight, char* selection);
         virtual void draw_confirmation(char* text, int options, char* option_name[], int highlight);
-}
+};
