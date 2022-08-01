@@ -12,10 +12,13 @@
 	url = https://github.com/BobbyIndustries/espsoftwareserial.git
 [submodule "components/Adafruit_SSD1306"]
 	path = components/Adafruit_SSD1306
-	url = https://github.com/BobbyIndustries/Adafruit_SSD1306.git
+	url = https://github.com/adafruit/Adafruit_SSD1306
 [submodule "components/Adafruit-GFX-Library"]
 	path = components/Adafruit-GFX-Library
 	url = https://github.com/adafruit/Adafruit-GFX-Library.git
 [submodule "components/sbus2"]
 	path = components/sbus2
 	url = https://github.com/BobbyIndustries/sbus2.git
+[submodule "components/--force"]
+	path = components/--force
+	url = https://github.com/adafruit/Adafruit_SSD1306
