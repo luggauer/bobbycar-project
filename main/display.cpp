@@ -9,3 +9,14 @@ display::display(TwoWire *bus, char adr){
 display::~display(){
     
 }
+
+STATES_OF_DISPLAY display::get_state(){
+    return state;
+}
+
+void display::set_state(STATES_OF_DISPLAY hstate){
+    if(state != hstate){
+        clear();
+        state = hstate;
+    }
+}

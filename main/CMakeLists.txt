@@ -8,6 +8,6 @@ if(DEFINED ENV{BLUEPAD32_ARDUINO})
     list(APPEND requires "bluepad32_arduino" "arduino" "espsoftwareserial" "Adafruit_SSD1306" "Adafruit-GFX-Library" "crc32")
 endif()
 
-idf_component_register(SRCS "display_oled.cpp" "inputreader.c" "math_functions.c" "${srcs}"
+idf_component_register(SRCS "display_oled.cpp" "inputreader.c" "math_functions.c" "c_data.c" "data.cpp" "${srcs}"
                     INCLUDE_DIRS "."
                     REQUIRES "${requires}")

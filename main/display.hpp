@@ -2,12 +2,19 @@
 
 #include <Wire.h>
 
+typedef enum{IDLE, OFF, STATUS, CONSOLE} STATES_OF_DISPLAY;
+
 class display{
+    private:
+        STATES_OF_DISPLAY state;
+        char* buffer;
     protected:
+        void set_state(STATES_OF_DISPLAY hstate);
         TwoWire *i2c_bus;
         char address;
         virtual void print_init();
     public:
+        STATES_OF_DISPLAY get_state();
         virtual void draw_console_line(char* line);
         display(TwoWire *bus, char adr);
         virtual ~display();
