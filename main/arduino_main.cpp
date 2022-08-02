@@ -83,17 +83,13 @@ void scan_i2c() {
         Wire.beginTransmission(address);
         error = Wire.endTransmission();
         if (error == 0) {
-            printf("I2C device found at address 0x%02hhX", address);
+            printf("I2C device found at address 0x%02hhX\n", address);
             nDevices++;
         } else if (error == 4) {
-            printf("Unknow error at address 0x%02hhX", address);
+            printf("Unknow error at address 0x%02hhX\n", address);
         }
     }
-    if (nDevices == 0) {
-        printf("No I2C devices found\n");
-    } else {
-        printf("%i I2C devices found\n", nDevices);
-    }
+    printf("%i I2C device%s found\n", nDevices, nDevices > 1 ? "s" : "");
 }
 
 void draw_line(const char* in, int y) {
@@ -240,6 +236,30 @@ void setup() {
     BP32.enableNewBluetoothConnections(true);
 }
 
+inline float rad2deg(float rad){
+    return rad * 45.0 / M_PI_4;
+}
+
+void display_state(int throttle, float steering, float steering_desired, int *torgue, int* torgue_regulated, int speed, int input_src){
+    char line_buffer[512];
+    snprintf(line_buffer, 512, "T%i S%.1f SD%.1f", throttle,rad2deg(steering),rad2deg(steering_desired));
+    lcd.setCursor(0, 0);              // Start at top-left corner
+    lcd.printf(line_buffer);
+
+    snprintf(line_buffer, 512, "%i%c%i %i%c%i", torgue[0], torgue_regulated[0]<0 ? '-' : '+' , ABS(torgue_regulated[0]), torgue[1], torgue_regulated[1]<0 ? '-' : '+' , ABS(torgue_regulated[1]));
+    lcd.setCursor(0, 1);              // Start at top-left corner
+    lcd.printf(line_buffer);
+
+    snprintf(line_buffer, 512, "%i %i", torgue[2], torgue[3]);
+    lcd.setCursor(0, 2);              // Start at top-left corner
+    lcd.printf(line_buffer);
+
+    snprintf(line_buffer, 512, "Input:%i  S:%i", input_src, speed);
+    lcd.setCursor(0, 3);              // Start at top-left corner
+    lcd.printf(line_buffer);
+    lcd.display();
+}
+
 unsigned long iTimeSend = 0;
 
 void Send(SoftwareSerial* board, int16_t speed0, int16_t speed1) {
@@ -339,7 +359,9 @@ char sprint_buffer[256];
 int16_t pad_steering;
 uint16_t pad_throttle, pad_brake;
 void loop() {
+    int speed = 0;
     int a0;
+    int torgue_regulated[2] = {0,0};
     unsigned long timeNow = millis();
     int throttle = throttle_calc(clean_adc_full(value_buffer(analogRead(THROTTLE0_PIN), 0)));
     float steering = calc_steering_eagle(clean_adc_steering(a0 = value_buffer(analogRead(STEERING_PIN), 1)));
@@ -366,7 +388,7 @@ void loop() {
                 pad_throttle);
         display.clearDisplay();
         draw_line(sprint_buffer, 0);
-        draw_lcd(sprint_buffer, 0);
+        display_state(throttle, steering, pad_steering, torgue, torgue_regulated, speed, controller);
     }
     // Blink the LED
     digitalWrite(LED_BUILTIN, (timeNow % 2000) < 1000);

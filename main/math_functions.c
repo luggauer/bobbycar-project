@@ -123,6 +123,12 @@ void calc_torque_per_wheel(int throttle, float alpha_steer, int *torque)
   
   if(alpha_steer == 0.0f)
     torque[0] = torque[1] = torque[2] = torque[3] = throttle;
+  for(int x = 0; x < 4; x++)
+    if(torque[x]>THROTTLE_MAX)
+      torque[x] = THROTTLE_MAX;
+    else if(torque[x]<(-THROTTLE_MAX))
+      torque[x] = (-THROTTLE_MAX);
+
 }
 
 inline void swp(int *x, int *y)
