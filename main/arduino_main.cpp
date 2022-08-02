@@ -20,7 +20,9 @@ limitations under the License.
 #ifndef CONFIG_BLUEPAD32_PLATFORM_ARDUINO
 #error "Must only be compiled when using Bluepad32 Arduino platform"
 #endif  // !CONFIG_BLUEPAD32_PLATFORM_ARDUINO
+#include <Bluepad32.h>
 
+#include <LiquidCrystal_I2C.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -38,7 +40,7 @@ limitations under the License.
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 
-// LiquidCrystal_I2C lcd(0x27, 20, 4);  //Hier wird das Display benannt (Adresse/Zeichen pro Zeile/Anzahl Zeilen). In
+LiquidCrystal_I2C lcd(0x27, 20, 4);  //Hier wird das Display benannt (Adresse/Zeichen pro Zeile/Anzahl Zeilen). In
 // unserem Fall „lcd“. Die Adresse des I²C Displays kann je nach Modul variieren.
 SoftwareSerial HoverSerial_front(RX0, TX0);  // RX, TX
 SoftwareSerial HoverSerial_rear(RX1, TX1);   // RX, TX
@@ -110,6 +112,17 @@ void draw_line(const char* in, int y) {
     display.display();
 }
 
+void draw_lcd(const char* in, int y) {
+
+    lcd.setCursor(0, y);              // Start at top-left corner
+    // Not all the characters will fit on the display. This is normal.
+    // Library will draw what it can and the rest will be clipped.
+    for (int16_t i = 0; in[i]; i++)
+        lcd.write(in[i]);
+
+    lcd.display();
+}
+
 void testscrolltext(void) {
     display.clearDisplay();
 
@@ -140,10 +153,53 @@ void testscrolltext(void) {
 void display_init() {
     Wire.begin(I2C_SDA, I2C_SCL);
     scan_i2c();
+    lcd.begin(20,4);
+    lcd.clear();
+    lcd.noBlink();
+    lcd.noCursor();
+    lcd.backlight();
     if (!(dsp_connected = display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)))
         printf("SSD1306 allocation failed");
     else
         display.display();
+}
+
+GamepadPtr myGamepads[BP32_MAX_GAMEPADS];
+void onConnectedGamepad(GamepadPtr gp) {
+    bool foundEmptySlot = false;
+    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
+        if (myGamepads[i] == nullptr) {
+            printf("CALLBACK: Gamepad is connected, index=%d\n", i);
+            // Additionally, you can get certain gamepad properties like:
+            // Model, VID, PID, BTAddr, flags, etc.
+            GamepadProperties properties = gp->getProperties();
+            Console.printf("Gamepad model: %s, VID=0x%04x, PID=0x%04x\n", gp->getModelName(), properties.vendor_id,
+                           properties.product_id);
+            myGamepads[i] = gp;
+            foundEmptySlot = true;
+            break;
+        }
+    }
+    if (!foundEmptySlot) {
+        printf("CALLBACK: Gamepad connected, but could not found empty slot\n");
+    }
+}
+
+void onDisconnectedGamepad(GamepadPtr gp) {
+    bool foundGamepad = false;
+
+    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
+        if (myGamepads[i] == gp) {
+            printf("CALLBACK: Gamepad is disconnected from index=%d\n", i);
+            myGamepads[i] = nullptr;
+            foundGamepad = true;
+            break;
+        }
+    }
+
+    if (!foundGamepad) {
+        printf("CALLBACK: Gamepad disconnected, but not found in myGamepads\n");
+    }
 }
 
 // Arduino setup function. Runs in CPU 1
@@ -310,6 +366,7 @@ void loop() {
                 pad_throttle);
         display.clearDisplay();
         draw_line(sprint_buffer, 0);
+        draw_lcd(sprint_buffer, 0);
     }
     // Blink the LED
     digitalWrite(LED_BUILTIN, (timeNow % 2000) < 1000);

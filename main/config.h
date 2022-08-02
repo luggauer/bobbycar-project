@@ -23,10 +23,10 @@
 #define STEERING_PIN 33
 #define I2C_SDA 19
 #define I2C_SCL 23
-#define RX0 17
-#define TX0 16
-#define RX1 18
-#define TX1 5
+#define TX0 17
+#define RX0 16
+#define TX1 18
+#define RX1 5
 #define LED_BUILTIN 22
 // ########################## DEFINES ##########################
 #define HOVER_SERIAL_BAUD 115200 // [-] Baud rate for HoverSerial (used to communicate with the hoverboard)
