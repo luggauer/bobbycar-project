@@ -28,7 +28,6 @@ limitations under the License.
 #include <stdlib.h>
 
 #include <Arduino.h>
-#include <Bluepad32.h>
 #include <SoftwareSerial.h>
 
 #include <math_functions.h>
@@ -145,47 +144,6 @@ void display_init() {
         printf("SSD1306 allocation failed");
     else
         display.display();
-}
-
-GamepadPtr myGamepads[BP32_MAX_GAMEPADS];
-
-// This callback gets called any time a new gamepad is connected.
-// Up to 4 gamepads can be connected at the same time.
-void onConnectedGamepad(GamepadPtr gp) {
-    bool foundEmptySlot = false;
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myGamepads[i] == nullptr) {
-            printf("CALLBACK: Gamepad is connected, index=%d\n", i);
-            // Additionally, you can get certain gamepad properties like:
-            // Model, VID, PID, BTAddr, flags, etc.
-            GamepadProperties properties = gp->getProperties();
-            Console.printf("Gamepad model: %s, VID=0x%04x, PID=0x%04x\n", gp->getModelName(), properties.vendor_id,
-                           properties.product_id);
-            myGamepads[i] = gp;
-            foundEmptySlot = true;
-            break;
-        }
-    }
-    if (!foundEmptySlot) {
-        printf("CALLBACK: Gamepad connected, but could not found empty slot\n");
-    }
-}
-
-void onDisconnectedGamepad(GamepadPtr gp) {
-    bool foundGamepad = false;
-
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myGamepads[i] == gp) {
-            printf("CALLBACK: Gamepad is disconnected from index=%d\n", i);
-            myGamepads[i] = nullptr;
-            foundGamepad = true;
-            break;
-        }
-    }
-
-    if (!foundGamepad) {
-        printf("CALLBACK: Gamepad disconnected, but not found in myGamepads\n");
-    }
 }
 
 // Arduino setup function. Runs in CPU 1
