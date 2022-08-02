@@ -19,3 +19,6 @@
 [submodule "components/Arduino-PID-Library"]
 	path = components/Arduino-PID-Library
 	url = https://github.com/BobbyIndustries/Arduino-PID-Library
+[submodule "components/memory_system_data"]
+	path = components/memory_system_data
+	url = https://github.com/LayerDE/memory_system_data.git
