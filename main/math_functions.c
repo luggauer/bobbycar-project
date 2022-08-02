@@ -62,7 +62,7 @@ int clean_adc_steering(uint32_t inval)
   return abs_outval * STR_MAX / (STR_RANGE - DEAD_ZONE * 3 / 2) * sign(outval);
 }
 
-int clean_adc_half(uint32_t inval)
+uint clean_adc_half(uint32_t inval)
 {
   int outval = (uint32_t)inval;
   if (abs(outval) > (ADC_MAX - ((DEAD_ZONE * 3) / 2)))
