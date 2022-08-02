@@ -16,3 +16,6 @@
 [submodule "components/Adafruit-GFX-Library"]
 	path = components/Adafruit-GFX-Library
 	url = https://github.com/adafruit/Adafruit-GFX-Library.git
+[submodule "components/Arduino-PID-Library"]
+	path = components/Arduino-PID-Library
+	url = https://github.com/BobbyIndustries/Arduino-PID-Library
