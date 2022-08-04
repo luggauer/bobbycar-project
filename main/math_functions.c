@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stdint.h>
-
+#include <c_data.h>
 #include "defines.h"
 #include "config.h"
 
@@ -106,23 +106,27 @@ static inline float pow2(float x){
 
 #define L_WHEELBASE2 (L_WHEELBASE * L_WHEELBASE)
 
-void calc_torque_per_wheel(int throttle, float alpha_steer, int *torque)
+void calc_torque_per_wheel(int throttle, float alpha_steer,int torque_regulated, int *torque)
 {
-  float V_bw = L_WHEELBASE/tan(fabs(alpha_steer));
-  float V_bw_0 = (V_bw + L_WIDTH/2.0*sign(alpha_steer)) / V_bw; //torque[2] 
-  float V_bw_1= (V_bw - L_WIDTH/2.0*sign(alpha_steer)) / V_bw; //torque[3] 
-
-  float V_fw_0 = (sqrt(pow2(V_bw + (L_STEERING_WIDTH/2.0)*sign(alpha_steer))+L_WHEELBASE2)+L_STEERING_TO_WHEEL)/V_bw; //torque[0] 
-  float V_fw_1 = (sqrt(pow2(V_bw - (L_STEERING_WIDTH/2.0)*sign(alpha_steer))+L_WHEELBASE2)+L_STEERING_TO_WHEEL)/V_bw; //torque[1]
-
-  float correction_factor = 4.0/(V_bw_0+V_bw_1+V_fw_0+V_fw_1);
-  torque[0] = round((float)throttle*V_fw_0*correction_factor);
-  torque[1] = round((float)throttle*V_fw_1*correction_factor);
-  torque[2] = round((float)throttle*V_bw_0*correction_factor);
-  torque[3] = round((float)throttle*V_bw_1*correction_factor);
-  
-  if(alpha_steer == 0.0f)
+  if(alpha_steer == 0.0f){
     torque[0] = torque[1] = torque[2] = torque[3] = throttle;
+    torque[0] += torque_regulated;
+    torque[1] -= torque_regulated;
+  }
+  else{
+    float V_bw = L_WHEELBASE/tan(fabs(alpha_steer));
+    float V_bw_0 = (V_bw + L_WIDTH/2.0*sign(alpha_steer)) / V_bw; //torque[2] 
+    float V_bw_1= (V_bw - L_WIDTH/2.0*sign(alpha_steer)) / V_bw; //torque[3] 
+
+    float V_fw_0 = (sqrt(pow2(V_bw + (L_STEERING_WIDTH/2.0)*sign(alpha_steer))+L_WHEELBASE2)+L_STEERING_TO_WHEEL)/V_bw; //torque[0] 
+    float V_fw_1 = (sqrt(pow2(V_bw - (L_STEERING_WIDTH/2.0)*sign(alpha_steer))+L_WHEELBASE2)+L_STEERING_TO_WHEEL)/V_bw; //torque[1]
+
+    float correction_factor = 4.0/(V_bw_0+V_bw_1+V_fw_0+V_fw_1);
+    torque[0] = round((float)throttle*V_fw_0*correction_factor)+torque_regulated;
+    torque[1] = round((float)throttle*V_fw_1*correction_factor)-torque_regulated;
+    torque[2] = round((float)throttle*V_bw_0*correction_factor);
+    torque[3] = round((float)throttle*V_bw_1*correction_factor);
+  }
   for(int x = 0; x < 4; x++)
     if(torque[x]>THROTTLE_MAX)
       torque[x] = THROTTLE_MAX;
@@ -131,24 +135,30 @@ void calc_torque_per_wheel(int throttle, float alpha_steer, int *torque)
 
 }
 
-inline void swp(int *x, int *y)
+static inline void swp(int *x, int *y)
 {
   int tmp = *x;
   *x = *y;
   *y = tmp;
 }
-inline void sort_array(int x[], int cnt)
+static inline void sort_array(int x[], int cnt)
 {
   for (int y = 0; y < cnt - 1; y++)
     for (int z = y + 1; z < cnt; z++)
       if (x[y] > x[z])
         swp(&x[y], &x[z]);
 }
-int calc_median(int x[], int cnt)
+int calc_median(const int x[], int cnt)
 {
-  sort_array(x, cnt);
+  int median;
+  c_data* data = NULL;
+  c_data_spawn_ptr(data);
+  c_data_set(data, (void*)x, cnt*sizeof(int));
+  sort_array((int*)data->content, data->size);
   if (cnt % 2)
-    return x[cnt / 2];
+    median = x[cnt / 2];
   else
-    return (x[cnt / 2] + x[cnt / 2 + 1]) / 2;
+    median = (x[cnt / 2] + x[cnt / 2 + 1]) / 2;
+  c_data_delete_ptr(data);
+  return median;
 }

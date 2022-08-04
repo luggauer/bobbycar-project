@@ -2,7 +2,10 @@
 
 #include <stdint.h>
 
-extern "C"{
+#ifdef __cplusplus
+extern "C" {
+#endif
+
     void init_buffer();
     uint32_t value_buffer(uint32_t in, int val);
     // bobbycar
@@ -13,8 +16,9 @@ extern "C"{
     int throttle_calc(int cleaned_adc);
     int calc_torque(int throttle, int breaks);
     float calc_steering_eagle(int inval);
-    void calc_torque_per_wheel(int throttle, float steering_eagle, int *torque);
-    inline void swp(int *x, int *y);
-    inline void sort_array(int x[], int cnt);
+    void calc_torque_per_wheel(int throttle, float steering_eagle,int torque_regulated, int *torque);
     int calc_median(int x[], int cnt);
+    
+#ifdef __cplusplus
 }
+#endif

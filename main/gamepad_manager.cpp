@@ -4,6 +4,10 @@
 #endif  // !CONFIG_BLUEPAD32_PLATFORM_ARDUINO
 
 #include <Bluepad32.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 GamepadPtr myGamepads[BP32_MAX_GAMEPADS];
 
@@ -46,7 +50,7 @@ void onDisconnectedGamepad(GamepadPtr gp) {
     }
 }
 
-void init_gpm(void* ignore){
+extern "C" void init_gpm(){
     BP32.setup(&onConnectedGamepad, &onDisconnectedGamepad);
     // "forgetBluetoothKeys()" should be called when the user performs
     // a "device factory reset", or similar.
@@ -57,16 +61,18 @@ void init_gpm(void* ignore){
     BP32.enableNewBluetoothConnections(true);
 }
 
-void gpm_read(){
+extern "C" void gpm_read(){
     BP32.update();
     for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
         GamepadPtr myGamepad = myGamepads[i];
         if (myGamepad && myGamepad->isConnected()) {
             if (myGamepad->x())
-                controller = !controller;
-            pad_steering = myGamepad->axisX();
-            pad_brake = myGamepad->brake();        // (0 - 1023): brake button
-            pad_throttle = myGamepad->throttle();  // (0 - 1023): throttle (AKA gas) button
+                //controller = !controller;
+            //pad_steering = myGamepad->axisX();
+            //pad_brake = myGamepad->brake();        // (0 - 1023): brake button
+            //pad_throttle = myGamepad->throttle();  // (0 - 1023): throttle (AKA gas) button
+
+
             // There are different ways to query whether a button is pressed.
             // By query each button individually:
             //  a(), b(), x(), y(), l1(), etc...

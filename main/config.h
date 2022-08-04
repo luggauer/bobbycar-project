@@ -19,7 +19,7 @@
 #define STR_MAX THROTTLE_MAX
 
 #define THROTTLE0_PIN 32
-#define THROTTLE1_PIN 35
+#define THROTTLE1_PIN 32
 #define STEERING_PIN 33
 #define I2C_SDA 19
 #define I2C_SCL 23
@@ -39,5 +39,5 @@
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
-#define BUFFERSIZE 256
+#define BUFFERSIZE 128
 #define VAL_CNT 3

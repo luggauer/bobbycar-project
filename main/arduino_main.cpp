@@ -20,7 +20,6 @@ limitations under the License.
 #ifndef CONFIG_BLUEPAD32_PLATFORM_ARDUINO
 #error "Must only be compiled when using Bluepad32 Arduino platform"
 #endif  // !CONFIG_BLUEPAD32_PLATFORM_ARDUINO
-#include <Bluepad32.h>
 
 #include <LiquidCrystal_I2C.h>
 #include <math.h>
@@ -35,22 +34,27 @@ limitations under the License.
 #include <math_functions.h>
 #include "config.h"
 #include "defines.h"
+#include "inputreader.h"
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
+
+#include <PID_v1.h>
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);  //Hier wird das Display benannt (Adresse/Zeichen pro Zeile/Anzahl Zeilen). In
 // unserem Fall „lcd“. Die Adresse des I²C Displays kann je nach Modul variieren.
 SoftwareSerial HoverSerial_front(RX0, TX0);  // RX, TX
 SoftwareSerial HoverSerial_rear(RX1, TX1);   // RX, TX
 // BluetoothSerial ESP_BT; //Object for Bluetooth
-
+// PID steering_calculator;
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 // The pins for I2C are defined by the Wire-library.
 // On an arduino UNO:       A4(SDA), A5(SCL)
 // On an arduino MEGA 2560: 20(SDA), 21(SCL)
 // On an arduino LEONARDO:   2(SDA),  3(SCL), ...
+
+float throttle_factor;
 
 bool dsp_connected;
 typedef struct {
@@ -119,33 +123,6 @@ void draw_lcd(const char* in, int y) {
     lcd.display();
 }
 
-void testscrolltext(void) {
-    display.clearDisplay();
-
-    display.setTextSize(2);  // Draw 2X-scale text
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(10, 0);
-    display.println(F("scroll"));
-    display.display();  // Show initial text
-    delay(100);
-
-    // Scroll in various directions, pausing in-between:
-    display.startscrollright(0x00, 0x0F);
-    delay(2000);
-    display.stopscroll();
-    delay(1000);
-    display.startscrollleft(0x00, 0x0F);
-    delay(2000);
-    display.stopscroll();
-    delay(1000);
-    display.startscrolldiagright(0x00, 0x07);
-    delay(2000);
-    display.startscrolldiagleft(0x00, 0x07);
-    delay(2000);
-    display.stopscroll();
-    delay(1000);
-}
-
 void display_init() {
     Wire.begin(I2C_SDA, I2C_SCL);
     scan_i2c();
@@ -160,93 +137,50 @@ void display_init() {
         display.display();
 }
 
-GamepadPtr myGamepads[BP32_MAX_GAMEPADS];
-void onConnectedGamepad(GamepadPtr gp) {
-    bool foundEmptySlot = false;
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myGamepads[i] == nullptr) {
-            printf("CALLBACK: Gamepad is connected, index=%d\n", i);
-            // Additionally, you can get certain gamepad properties like:
-            // Model, VID, PID, BTAddr, flags, etc.
-            GamepadProperties properties = gp->getProperties();
-            Console.printf("Gamepad model: %s, VID=0x%04x, PID=0x%04x\n", gp->getModelName(), properties.vendor_id,
-                           properties.product_id);
-            myGamepads[i] = gp;
-            foundEmptySlot = true;
-            break;
-        }
-    }
-    if (!foundEmptySlot) {
-        printf("CALLBACK: Gamepad connected, but could not found empty slot\n");
-    }
-}
-
-void onDisconnectedGamepad(GamepadPtr gp) {
-    bool foundGamepad = false;
-
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myGamepads[i] == gp) {
-            printf("CALLBACK: Gamepad is disconnected from index=%d\n", i);
-            myGamepads[i] = nullptr;
-            foundGamepad = true;
-            break;
-        }
-    }
-
-    if (!foundGamepad) {
-        printf("CALLBACK: Gamepad disconnected, but not found in myGamepads\n");
-    }
-}
-
 // Arduino setup function. Runs in CPU 1
 void setup() {
-//    TaskHandle_t tasks[task_count] = {NULL, NULL, NULL};
-//    xTaskCreate(&init_ota, "init_ota", 2048 * 3, NULL, 5, &tasks[0]);
-//    xTaskCreate(&init_user_default, "init_user_default", 2048 * 2, NULL, 5, &tasks[1]);
-//    xTaskCreate(&init_servo, "init_servo", 2048 * 2, (void*)12, 5, &tasks[2]);
-//    for(int y = task_count; y != 0; y = task_count)
-//    for(int x = 0; x < task_count; x++)
-//        if(tasks[x] == NULL)
-//          y--;
+    const int task_count = 3;
     printf("Hoverboard Serial v1.0");
+    TaskHandle_t tasks[task_count] = {NULL, NULL, NULL};
+    xTaskCreate(&init_gamepad, "init_gamepad", 2048 * 3, NULL, 5, &tasks[0]);
+    xTaskCreate(&init_adc_task, "init_adc_task", 2048 * 2, NULL, 5, &tasks[1]);
+    xTaskCreate(&init_sbus, "init_servo", 2048 * 2, NULL, 5, &tasks[2]);
+    for(int y = task_count; y > 0;){
+        y = task_count;
+        for(int x = 0; x < task_count; x++)
+            if(eTaskGetState(tasks[x]))
+                //printf("Hoverboard Serial v1.0");
+                y--;
+        vTaskDelay(10);
+        printf("next %i\n",y);
+    }
     // ESP_BT.begin("ESP32_BobbyCon"); //Name of your Bluetooth Signal
-    pinMode(THROTTLE0_PIN, INPUT);
-    pinMode(STEERING_PIN, INPUT);
     // lcd.init(); //Im Setup wird der LCD gestartet
     // lcd.backlight(); //Hintergrundbeleuchtung einschalten (0 schaltet die Beleuchtung aus).
-
+    xTaskCreate(&adc_task, "adc", 2048 * 2, NULL, 5, NULL);
     HoverSerial_front.begin(HOVER_SERIAL_BAUD);
 
     HoverSerial_rear.begin(HOVER_SERIAL_BAUD);
     pinMode(LED_BUILTIN, OUTPUT);
     // init_debug_screen();
 
-    printf("Firmware: %s\n", BP32.firmwareVersion());
     init_buffer();
     display_init();
     // Setup the Bluepad32 callbacks
-    // BP32.forgetBluetoothKeys();
-    BP32.setup(&onConnectedGamepad, &onDisconnectedGamepad);
-    // "forgetBluetoothKeys()" should be called when the user performs
-    // a "device factory reset", or similar.
-    // Calling "forgetBluetoothKeys" in setup() just as an example.
-    // Forgetting Bluetooth keys prevents "paired" gamepads to reconnect.
-    // But might also fix some connection / re-connection issues.
-    // BP32.forgetBluetoothKeys();
-    BP32.enableNewBluetoothConnections(true);
+    // addr:9C:AA:1B:E6:7D:13
 }
 
 inline float rad2deg(float rad){
     return rad * 45.0 / M_PI_4;
 }
 
-void display_state(int throttle, float steering, float steering_desired, int *torgue, int* torgue_regulated, int speed, int input_src){
+void display_state(int throttle, float steering, float steering_desired, int *torgue, int torgue_regulated, int speed, int input_src){
     char line_buffer[512];
     snprintf(line_buffer, 512, "T%i S%.1f SD%.1f", throttle,rad2deg(steering),rad2deg(steering_desired));
     lcd.setCursor(0, 0);              // Start at top-left corner
     lcd.printf(line_buffer);
 
-    snprintf(line_buffer, 512, "%i%c%i %i%c%i", torgue[0], torgue_regulated[0]<0 ? '-' : '+' , ABS(torgue_regulated[0]), torgue[1], torgue_regulated[1]<0 ? '-' : '+' , ABS(torgue_regulated[1]));
+    snprintf(line_buffer, 512, "%i%c%i %i%c%i", torgue[0], torgue_regulated<0 ? '+' : '-' , ABS(torgue_regulated), torgue[1], torgue_regulated>0 ? '+' : '-' , ABS(torgue_regulated));
     lcd.setCursor(0, 1);              // Start at top-left corner
     lcd.printf(line_buffer);
 
@@ -278,16 +212,20 @@ void Send(SoftwareSerial* board, int16_t speed0, int16_t speed1) {
 // Global variables
 uint8_t idx = 0;  // index_buff_vals for new data pointer
 byte* p;          // Pointer declaration for the new received data
-byte incomingByte;
-byte incomingBytePrev;
-SerialFeedback NewFeedback;
-bool Receive(SoftwareSerial* board, SerialFeedback* out) {
+byte incomingByte_front;
+byte incomingBytePrev_front;
+byte incomingByte_rear;
+byte incomingBytePrev_rear;
+
+SerialFeedback NewFeedback_front;
+SerialFeedback NewFeedback_rear;
+bool Receive(SoftwareSerial* board, SerialFeedback* out, byte *incomingByte,byte *incomingBytePrev,SerialFeedback *NewFeedback) {
     uint16_t bufStartFrame;  // Buffer Start Frame
     // byte buffer[sizeof(SerialFeedback)];
     //  Check for new data availability in the Serial buffer
     if (board->available()) {
-        incomingByte = board->read();                                        // Read the incoming byte
-        bufStartFrame = ((uint16_t)(incomingByte) << 8) | incomingBytePrev;  // Construct the start frame
+        *incomingByte = board->read();                                        // Read the incoming byte
+        bufStartFrame = ((uint16_t)(*incomingByte) << 8) | *incomingBytePrev;  // Construct the start frame
     } else {
         return false;
     }
@@ -299,28 +237,28 @@ bool Receive(SoftwareSerial* board, SerialFeedback* out) {
 
     // Copy received data
     if (bufStartFrame == START_FRAME) {  // Initialize if new data is detected
-        p = (byte*)&NewFeedback;
-        *p++ = incomingBytePrev;
-        *p++ = incomingByte;
+        p = (byte*)NewFeedback;
+        *p++ = *incomingBytePrev;
+        *p++ = *incomingByte;
         idx = 2;
     } else if (idx >= 2 && idx < sizeof(SerialFeedback)) {  // Save the new received data
-        *p++ = incomingByte;
+        *p++ = *incomingByte;
         idx++;
     }
     // Update previous states
-    incomingBytePrev = incomingByte;
+    *incomingBytePrev = *incomingByte;
     // Check if we reached the end of the package
     if (idx == sizeof(SerialFeedback)) {
         uint16_t checksum;
         checksum =
-            (uint16_t)(NewFeedback.start ^ NewFeedback.cmd1 ^ NewFeedback.cmd2 ^ NewFeedback.speedR_meas ^
-                       NewFeedback.speedL_meas ^ NewFeedback.batVoltage ^ NewFeedback.boardTemp ^ NewFeedback.cmdLed);
+            (uint16_t)(NewFeedback->start ^ NewFeedback->cmd1 ^ NewFeedback->cmd2 ^ NewFeedback->speedR_meas ^
+                       NewFeedback->speedL_meas ^ NewFeedback->batVoltage ^ NewFeedback->boardTemp ^ NewFeedback->cmdLed);
         idx = 0;  // Reset the index_buff_vals (it prevents to enter in this if condition in the next cycle)
 
         // Check validity of the new data
-        if (NewFeedback.start == START_FRAME && checksum == NewFeedback.checksum) {
+        if (NewFeedback->start == START_FRAME && checksum == NewFeedback->checksum) {
             // Copy the new data
-            memcpy(&out, &NewFeedback, sizeof(SerialFeedback));
+            memcpy(out, NewFeedback, sizeof(SerialFeedback));
 
             // Print data to built-in Serial
             Serial.print("1: ");
@@ -360,31 +298,35 @@ int16_t pad_steering;
 uint16_t pad_throttle, pad_brake;
 void loop() {
     int speed = 0;
-    int a0;
-    int torgue_regulated[2] = {0,0};
+    int torgue_regulated=0;
     unsigned long timeNow = millis();
-    int throttle = throttle_calc(clean_adc_full(value_buffer(analogRead(THROTTLE0_PIN), 0)));
-    float steering = calc_steering_eagle(clean_adc_steering(a0 = value_buffer(analogRead(STEERING_PIN), 1)));
+    //int throttle = throttle_calc(clean_adc_full(value_buffer(analogRead(THROTTLE0_PIN),1)));
+    //float steering = calc_steering_eagle(clean_adc_steering(value_buffer(analogRead(STEERING_PIN),0)));
+    int throttle = get_throttle();
+    float steering =  get_steering();
     // Check for new received data
-    // if(Receive(&HoverSerial_front, &SerialFeedback_front) || Receive(&HoverSerial_rear, &SerialFeedback_rear)){
-    //  speed_per_wheel[0] = SerialFeedback_front.speedL_meas;
-    //  speed_per_wheel[1] = SerialFeedback_front.speedR_meas;
-    //  speed_per_wheel[2] = SerialFeedback_rear.speedL_meas;
-    //  speed_per_wheel[3] = SerialFeedback_rear.speedR_meas;
-    //  speed = calc_median(speed_per_wheel,4);
-    //}  // Send commands
+    if(Receive(&HoverSerial_front, &SerialFeedback_front, &incomingByte_front, &incomingBytePrev_front, &NewFeedback_front)
+        || Receive(&HoverSerial_rear, &SerialFeedback_rear, &incomingByte_rear, &incomingBytePrev_rear, &NewFeedback_rear)){
+      speed_per_wheel[0] = SerialFeedback_front.speedL_meas;
+      speed_per_wheel[1] = SerialFeedback_front.speedR_meas;
+      speed_per_wheel[2] = SerialFeedback_rear.speedL_meas;
+      speed_per_wheel[3] = SerialFeedback_rear.speedR_meas;
+      speed = calc_median(speed_per_wheel,4);
+    }  // Send commands
+    //steering_calculator.Compute();
+    torgue_regulated = throttle_factor * THROTTLE_MAX;
     if (iTimeSend > timeNow)
         return;
     iTimeSend = timeNow + TIME_SEND;
     if (!controller)
-        calc_torque_per_wheel(throttle, steering, torgue);
+        calc_torque_per_wheel(throttle, steering,torgue_regulated, torgue);
     else
-        calc_torque_per_wheel(pad_throttle - pad_brake, pad_steering * 2, torgue);
+        calc_torque_per_wheel(pad_throttle - pad_brake, pad_steering * 2,torgue_regulated, torgue);
     Send(&HoverSerial_front, torgue[0], torgue[1]);
     Send(&HoverSerial_rear, torgue[2], torgue[3]);
-    if (!((send_cnt++) % 20)) {
-        sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i  \t  %i\n%i  \t  %i\n%i: S%i B%i T%i", throttle,
-                steering * 45 / M_PI_4, torgue[0], torgue[1], torgue[2], torgue[3], controller, pad_steering, pad_brake,
+    if (!((send_cnt++) % 7)) {
+        sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i %c %i  \t  %i %c %i\n%i      \t      %i\n%i: S%i B%i T%i", throttle,
+                steering * 45.0 / M_PI_4, torgue[0], torgue_regulated<0 ? '+' : '-' , ABS(torgue_regulated), torgue[1], torgue_regulated>0 ? '+' : '-' , ABS(torgue_regulated), torgue[2], torgue[3], controller, pad_steering, pad_brake,
                 pad_throttle);
         display.clearDisplay();
         draw_line(sprint_buffer, 0);
@@ -392,83 +334,5 @@ void loop() {
     }
     // Blink the LED
     digitalWrite(LED_BUILTIN, (timeNow % 2000) < 1000);
-    if ((send_cnt++) % 7)
-        return;
-    BP32.update();
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        GamepadPtr myGamepad = myGamepads[i];
-        if (myGamepad && myGamepad->isConnected()) {
-            if (myGamepad->x())
-                controller = !controller;
-            pad_steering = myGamepad->axisX();
-            pad_brake = myGamepad->brake();        // (0 - 1023): brake button
-            pad_throttle = myGamepad->throttle();  // (0 - 1023): throttle (AKA gas) button
-            // There are different ways to query whether a button is pressed.
-            // By query each button individually:
-            //  a(), b(), x(), y(), l1(), etc...
-            if (myGamepad->a()) {
-                static int colorIdx = 0;
-                // Some gamepads like DS4 and DualSense support changing the color LED.
-                // It is possible to change it by calling:
-                switch (colorIdx % 3) {
-                    case 0:
-                        // Red
-                        myGamepad->setColorLED(255, 0, 0);
-                        break;
-                    case 1:
-                        // Green
-                        myGamepad->setColorLED(0, 255, 0);
-                        break;
-                    case 2:
-                        // Blue
-                        myGamepad->setColorLED(0, 0, 255);
-                        break;
-                }
-                colorIdx++;
-            }
-
-            if (myGamepad->b()) {
-                // Turn on the 4 LED. Each bit represents one LED.
-                static int led = 0;
-                led++;
-                // Some gamepads like the DS3, DualSense, Nintendo Wii, Nintendo Switch
-                // support changing the "Player LEDs": those 4 LEDs that usually indicate
-                // the "gamepad seat".
-                // It is possible to change them by calling:
-                myGamepad->setPlayerLEDs(led & 0x0f);
-            }
-
-            if (myGamepad->x()) {
-                // Duration: 255 is ~2 seconds
-                // force: intensity
-                // Some gamepads like DS3, DS4, DualSense, Switch, Xbox One S support
-                // rumble.
-                // It is possible to set it by calling:
-                myGamepad->setRumble(0xc0 /* force */, 0xc0 /* duration */);
-            }
-
-            // Another way to query the buttons, is by calling buttons(), or
-            // miscButtons() which return a bitmask.
-            // Some gamepads also have DPAD, axis and more.
-            printf(
-                "idx=%d, dpad: 0x%02x, buttons: 0x%04x, axis L: %4d, %4d, axis R: %4d, "
-                "%4d, brake: %4d, throttle: %4d, misc: 0x%02x\n",
-                i,                        // Gamepad Index
-                myGamepad->dpad(),        // DPAD
-                myGamepad->buttons(),     // bitmask of pressed buttons
-                myGamepad->axisX(),       // (-511 - 512) left X Axis
-                myGamepad->axisY(),       // (-511 - 512) left Y axis
-                myGamepad->axisRX(),      // (-511 - 512) right X axis
-                myGamepad->axisRY(),      // (-511 - 512) right Y axis
-                myGamepad->brake(),       // (0 - 1023): brake button
-                myGamepad->throttle(),    // (0 - 1023): throttle (AKA gas) button
-                myGamepad->miscButtons()  // bitmak of pressed "misc" buttons
-            );
-
-            // You can query the axis and other properties as well. See Gamepad.h
-            // For all the available functions.
-        }
-    }
-
-    delay(150);
+    vTaskDelay(10);
 }
