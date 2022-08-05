@@ -137,6 +137,13 @@ void display_init() {
         display.display();
 }
 
+
+SerialFeedback NewFeedback_front;
+SerialFeedback NewFeedback_rear;
+
+SerialFeedback SerialFeedback_front;
+SerialFeedback SerialFeedback_rear;
+
 // Arduino setup function. Runs in CPU 1
 void setup() {
     const int task_count = 3;
@@ -158,6 +165,9 @@ void setup() {
     // lcd.init(); //Im Setup wird der LCD gestartet
     // lcd.backlight(); //Hintergrundbeleuchtung einschalten (0 schaltet die Beleuchtung aus).
     xTaskCreate(&adc_task, "adc", 2048 * 2, NULL, 5, NULL);
+
+      SerialFeedback_front.speedL_meas = SerialFeedback_front.speedR_meas = SerialFeedback_rear.speedL_meas = SerialFeedback_rear.speedR_meas = 0;
+
     HoverSerial_front.begin(HOVER_SERIAL_BAUD);
 
     HoverSerial_rear.begin(HOVER_SERIAL_BAUD);
@@ -217,8 +227,7 @@ byte incomingBytePrev_front;
 byte incomingByte_rear;
 byte incomingBytePrev_rear;
 
-SerialFeedback NewFeedback_front;
-SerialFeedback NewFeedback_rear;
+
 bool Receive(SoftwareSerial* board, SerialFeedback* out, byte *incomingByte,byte *incomingBytePrev,SerialFeedback *NewFeedback) {
     uint16_t bufStartFrame;  // Buffer Start Frame
     // byte buffer[sizeof(SerialFeedback)];
@@ -261,23 +270,10 @@ bool Receive(SoftwareSerial* board, SerialFeedback* out, byte *incomingByte,byte
             memcpy(out, NewFeedback, sizeof(SerialFeedback));
 
             // Print data to built-in Serial
-            Serial.print("1: ");
-            Serial.print(out->cmd1);
-            Serial.print(" 2: ");
-            Serial.print(out->cmd2);
-            Serial.print(" 3: ");
-            Serial.print(out->speedR_meas);
-            Serial.print(" 4: ");
-            Serial.print(out->speedL_meas);
-            Serial.print(" 5: ");
-            Serial.print(out->batVoltage);
-            Serial.print(" 6: ");
-            Serial.print(out->boardTemp);
-            Serial.print(" 7: ");
-            Serial.println(out->cmdLed);
+            printf("1: %i 2: %i 3: %i 4: %i 5: %i 6: %i 7: %i\n",out->cmd1,out->cmd2,out->speedR_meas,out->speedL_meas,out->batVoltage,out->boardTemp,out->cmdLed);
             return true;
         } else {
-            Serial.println("Non-valid data skipped");
+            printf("Non-valid data skipped\n");
             return false;
         }
     } else {
@@ -285,19 +281,16 @@ bool Receive(SoftwareSerial* board, SerialFeedback* out, byte *incomingByte,byte
     }
 }
 
-SerialFeedback SerialFeedback_front;
-SerialFeedback SerialFeedback_rear;
 bool controller = false;
 int torgue[4];
 int speed_per_wheel[4];
-int speed;
+int speed = 0;
 int send_cnt = 0;
 // Arduino loop function. Runs in CPU 1
 char sprint_buffer[256];
 int16_t pad_steering;
 uint16_t pad_throttle, pad_brake;
 void loop() {
-    int speed = 0;
     int torgue_regulated=0;
     unsigned long timeNow = millis();
     //int throttle = throttle_calc(clean_adc_full(value_buffer(analogRead(THROTTLE0_PIN),1)));
@@ -307,11 +300,12 @@ void loop() {
     // Check for new received data
     if(Receive(&HoverSerial_front, &SerialFeedback_front, &incomingByte_front, &incomingBytePrev_front, &NewFeedback_front)
         || Receive(&HoverSerial_rear, &SerialFeedback_rear, &incomingByte_rear, &incomingBytePrev_rear, &NewFeedback_rear)){
-      speed_per_wheel[0] = SerialFeedback_front.speedL_meas;
-      speed_per_wheel[1] = SerialFeedback_front.speedR_meas;
-      speed_per_wheel[2] = SerialFeedback_rear.speedL_meas;
-      speed_per_wheel[3] = SerialFeedback_rear.speedR_meas;
-      speed = calc_median(speed_per_wheel,4);
+        speed = 0;
+      speed += speed_per_wheel[0] = SerialFeedback_front.speedL_meas;
+      speed += speed_per_wheel[1] = SerialFeedback_front.speedR_meas;
+      speed += speed_per_wheel[2] = SerialFeedback_rear.speedL_meas;
+      speed += speed_per_wheel[3] = SerialFeedback_rear.speedR_meas;
+      speed /= 4;
     }  // Send commands
     //steering_calculator.Compute();
     torgue_regulated = throttle_factor * THROTTLE_MAX;
@@ -325,9 +319,9 @@ void loop() {
     Send(&HoverSerial_front, torgue[0], torgue[1]);
     Send(&HoverSerial_rear, torgue[2], torgue[3]);
     if (!((send_cnt++) % 7)) {
-        sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i %c %i  \t  %i %c %i\n%i      \t      %i\n%i: S%i B%i T%i", throttle,
+        sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i %c %i  \t  %i %c %i\n%i      \t      %i\n%i: S%i B%i T%i\nSPEED: %i", throttle,
                 steering * 45.0 / M_PI_4, torgue[0], torgue_regulated<0 ? '+' : '-' , ABS(torgue_regulated), torgue[1], torgue_regulated>0 ? '+' : '-' , ABS(torgue_regulated), torgue[2], torgue[3], controller, pad_steering, pad_brake,
-                pad_throttle);
+                pad_throttle, speed);
         display.clearDisplay();
         draw_line(sprint_buffer, 0);
         display_state(throttle, steering, pad_steering, torgue, torgue_regulated, speed, controller);
