@@ -232,53 +232,50 @@ bool Receive(SoftwareSerial* board, SerialFeedback* out, byte *incomingByte,byte
     uint16_t bufStartFrame;  // Buffer Start Frame
     // byte buffer[sizeof(SerialFeedback)];
     //  Check for new data availability in the Serial buffer
-    if (board->available()) {
+    bool data_complete = false;
+    while(board->available()){
         *incomingByte = board->read();                                        // Read the incoming byte
         bufStartFrame = ((uint16_t)(*incomingByte) << 8) | *incomingBytePrev;  // Construct the start frame
-    } else {
-        return false;
+
+            // Copy received data
+        if (bufStartFrame == START_FRAME) {  // Initialize if new data is detected
+            p = (byte*)NewFeedback;
+            *p++ = *incomingBytePrev;
+            *p++ = *incomingByte;
+            idx = 2;
+        } else if (idx >= 2 && idx < sizeof(SerialFeedback)) {  // Save the new received data
+            *p++ = *incomingByte;
+            idx++;
+        }
+        // Update previous states
+        *incomingBytePrev = *incomingByte;
+        // Check if we reached the end of the package
+        if (idx == sizeof(SerialFeedback)) {
+            uint16_t checksum;
+            checksum =
+                (uint16_t)(NewFeedback->start ^ NewFeedback->cmd1 ^ NewFeedback->cmd2 ^ NewFeedback->speedR_meas ^
+                        NewFeedback->speedL_meas ^ NewFeedback->batVoltage ^ NewFeedback->boardTemp ^ NewFeedback->cmdLed);
+            idx = 0;  // Reset the index_buff_vals (it prevents to enter in this if condition in the next cycle)
+
+            // Check validity of the new data
+            if (NewFeedback->start == START_FRAME && checksum == NewFeedback->checksum) {
+                // Copy the new data
+                memcpy(out, NewFeedback, sizeof(SerialFeedback));
+                out->speedR_meas = -out->speedR_meas;
+                // Print data to built-in Serial
+                printf("1: %i 2: %i 3: %i 4: %i 5: %i 6: %i 7: %i\n",out->cmd1,out->cmd2,out->speedR_meas,out->speedL_meas,out->batVoltage,out->boardTemp,out->cmdLed);
+                data_complete = true;
+            } else {
+                printf("Non-valid data skipped\n");
+            }
+        }
     }
+    return data_complete;
 
 // If DEBUG_RX is defined print all incoming bytes
 #ifdef DEBUG_RX
     Serial.println(incomingByte, HEX);
 #endif
-
-    // Copy received data
-    if (bufStartFrame == START_FRAME) {  // Initialize if new data is detected
-        p = (byte*)NewFeedback;
-        *p++ = *incomingBytePrev;
-        *p++ = *incomingByte;
-        idx = 2;
-    } else if (idx >= 2 && idx < sizeof(SerialFeedback)) {  // Save the new received data
-        *p++ = *incomingByte;
-        idx++;
-    }
-    // Update previous states
-    *incomingBytePrev = *incomingByte;
-    // Check if we reached the end of the package
-    if (idx == sizeof(SerialFeedback)) {
-        uint16_t checksum;
-        checksum =
-            (uint16_t)(NewFeedback->start ^ NewFeedback->cmd1 ^ NewFeedback->cmd2 ^ NewFeedback->speedR_meas ^
-                       NewFeedback->speedL_meas ^ NewFeedback->batVoltage ^ NewFeedback->boardTemp ^ NewFeedback->cmdLed);
-        idx = 0;  // Reset the index_buff_vals (it prevents to enter in this if condition in the next cycle)
-
-        // Check validity of the new data
-        if (NewFeedback->start == START_FRAME && checksum == NewFeedback->checksum) {
-            // Copy the new data
-            memcpy(out, NewFeedback, sizeof(SerialFeedback));
-
-            // Print data to built-in Serial
-            printf("1: %i 2: %i 3: %i 4: %i 5: %i 6: %i 7: %i\n",out->cmd1,out->cmd2,out->speedR_meas,out->speedL_meas,out->batVoltage,out->boardTemp,out->cmdLed);
-            return true;
-        } else {
-            printf("Non-valid data skipped\n");
-            return false;
-        }
-    } else {
-        return false;
-    }
 }
 
 bool controller = false;
@@ -290,13 +287,31 @@ int send_cnt = 0;
 char sprint_buffer[256];
 int16_t pad_steering;
 uint16_t pad_throttle, pad_brake;
+long last_time;
+int last_throttle;
+float last_steering;
+
+bool isNear(float a,float b, float range){
+    if(ABS(a-b)<range)
+        return true;
+    else
+        return false;
+}
+
 void loop() {
+    int voltage =0;
     int torgue_regulated=0;
     unsigned long timeNow = millis();
     //int throttle = throttle_calc(clean_adc_full(value_buffer(analogRead(THROTTLE0_PIN),1)));
     //float steering = calc_steering_eagle(clean_adc_steering(value_buffer(analogRead(STEERING_PIN),0)));
     int throttle = get_throttle();
     float steering =  get_steering();
+    if(!isNear(last_throttle,throttle,100) || !isNear(last_steering,steering,0.5)){
+        printf("update time %li %li\n",last_time, timeNow);
+        last_time = timeNow;
+        last_throttle = throttle;
+        last_steering = steering;
+    }
     // Check for new received data
     if(Receive(&HoverSerial_front, &SerialFeedback_front, &incomingByte_front, &incomingBytePrev_front, &NewFeedback_front)
         || Receive(&HoverSerial_rear, &SerialFeedback_rear, &incomingByte_rear, &incomingBytePrev_rear, &NewFeedback_rear)){
@@ -305,7 +320,9 @@ void loop() {
       speed += speed_per_wheel[1] = SerialFeedback_front.speedR_meas;
       speed += speed_per_wheel[2] = SerialFeedback_rear.speedL_meas;
       speed += speed_per_wheel[3] = SerialFeedback_rear.speedR_meas;
+      voltage = SerialFeedback_front.batVoltage + SerialFeedback_rear.batVoltage / 2;
       speed /= 4;
+      last_time = timeNow;
     }  // Send commands
     //steering_calculator.Compute();
     torgue_regulated = throttle_factor * THROTTLE_MAX;
@@ -319,12 +336,17 @@ void loop() {
     Send(&HoverSerial_front, torgue[0], torgue[1]);
     Send(&HoverSerial_rear, torgue[2], torgue[3]);
     if (!((send_cnt++) % 7)) {
-        sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i %c %i  \t  %i %c %i\n%i      \t      %i\n%i: S%i B%i T%i\nSPEED: %i", throttle,
-                steering * 45.0 / M_PI_4, torgue[0], torgue_regulated<0 ? '+' : '-' , ABS(torgue_regulated), torgue[1], torgue_regulated>0 ? '+' : '-' , ABS(torgue_regulated), torgue[2], torgue[3], controller, pad_steering, pad_brake,
-                pad_throttle, speed);
-        display.clearDisplay();
-        draw_line(sprint_buffer, 0);
-        display_state(throttle, steering, pad_steering, torgue, torgue_regulated, speed, controller);
+        if( last_time + 20000 < timeNow){
+            display.clearDisplay();
+            display.display();
+        }else{
+            sprintf(sprint_buffer, "Throttle: %i\nSteering: %f\n%i %c %i  \t  %i %c %i\n%i      \t      %i\n%i: S%i B%i T%i\nV:%i    SPEED: %i", throttle,
+                    steering * 45.0 / M_PI_4, torgue[0], torgue_regulated<0 ? '+' : '-' , ABS(torgue_regulated), torgue[1], torgue_regulated>0 ? '+' : '-' , ABS(torgue_regulated), torgue[2], torgue[3], controller, pad_steering, pad_brake,
+                    pad_throttle,voltage, speed);
+            display.clearDisplay();
+            draw_line(sprint_buffer, 0);
+            display_state(throttle, steering, pad_steering, torgue, torgue_regulated, speed, controller);
+        }
     }
     // Blink the LED
     digitalWrite(LED_BUILTIN, (timeNow % 2000) < 1000);
