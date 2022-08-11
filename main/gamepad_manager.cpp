@@ -61,15 +61,19 @@ extern "C" void init_gpm(){
     BP32.enableNewBluetoothConnections(true);
 }
 
-extern "C" void gpm_read(int *throttle,int *steering, bool *active){
+extern "C" void gpm_read(int *throttle,int *steering, int *active){
     BP32.update();
     for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
         GamepadPtr myGamepad = myGamepads[i];
         if (myGamepad && myGamepad->isConnected()) {
             *steering = myGamepad->axisX();
             *throttle = myGamepad->throttle()-myGamepad->brake();  // (0 - 1023): throttle (AKA gas) button
-            if (myGamepad->x())
-                *active = !(*active);
+            if (myGamepad->x()){
+                if(*active != 2)
+                    *active = 2;
+                else
+                    *active = 0;
+            }
             // There are different ways to query whether a button is pressed.
             // By query each button individually:
             //  a(), b(), x(), y(), l1(), etc...

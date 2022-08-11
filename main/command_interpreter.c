@@ -16,6 +16,8 @@ typedef struct
     func_ptr exec;
 } command;
 
+const char* inputs[] = {"ADC","Console", "Gamepad"};
+
 static bool echo(const char* argv, c_data* out){
     c_data_extend_raw(out, argv, strlen(argv));
     c_data_extend_raw(out, &newl4ptr, sizeof(newl4ptr));
@@ -45,6 +47,24 @@ static bool cmd_get_throttle(const char* argv, c_data* out){
     c_data_extend_raw(out, buffer, strlen(buffer));
     return true;
 }
+
+static bool cmd_set_input(const char* argv, c_data* out){
+    char buffer[20];
+    for(int i = 0;i < (sizeof(inputs)/sizeof(char*));i++)
+        if(strcmp(inputs[i],argv) == 0){
+            set_input_src(i);
+            return true;
+        }
+    return false;
+}
+
+static bool cmd_get_input(const char* argv, c_data* out){
+    char buffer[20];
+    //sprintf(buffer, "I:%s\n",get_throttle());
+    c_data_extend_raw(out, buffer, strlen(buffer));
+    return true;
+}
+
 
 
 static const command commands[] = {{"help",print_help_of},{"echo", echo},{"sets",cmd_set_steering},{"sett",cmd_set_throttle},{"gets",cmd_get_steering},{"gett",cmd_get_throttle},{"exec",exec}};

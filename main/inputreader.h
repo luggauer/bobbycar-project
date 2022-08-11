@@ -3,8 +3,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern volatile float adc_steering;
-extern volatile float desired_steering;
+//extern volatile float adc_steering;
+//extern volatile float desired_steering;
+
+int get_input_src();
+void set_input_src(int src);
+
 int get_throttle();
 float get_steering();
 float get_des_steering();

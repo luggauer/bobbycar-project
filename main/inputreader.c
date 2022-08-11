@@ -9,11 +9,19 @@
 #include <Arduino.h>
 #include <stddef.h>
 
-volatile int adc_throttle;
-volatile int adc_steering;
-volatile int desired_steering;
-volatile bool active = false;
+volatile static int adc_throttle;
+volatile static int adc_steering;
+volatile static int desired_steering;
+volatile static int input_src = 0;
 
+
+int get_input_src(){
+    return input_src;
+}
+
+void set_input_src(int src){
+    input_src = src;
+}
 
 int get_throttle(){
     return throttle_calc(adc_throttle);
@@ -25,7 +33,7 @@ float get_des_steering(){
     return desired_steering;
 }
 bool get_contoller_active(){
-    return active;
+    return input_src == 2;
 }
 
 void init_gamepad(void* ignore){
@@ -56,11 +64,11 @@ void init_auto_reveser(void* ignore){
 
 void gamepad_task(void* ignore){
     int pad_data[6];
-    bool tmp;
+    int tmp;
     while(true){
-        tmp = active;
+        tmp = input_src;
         gpm_read(&pad_data[0],&pad_data[1],&tmp);
-        active = tmp;
+        input_src = tmp;
         vTaskDelay(20);
     }
     vTaskDelete(NULL);

@@ -5,7 +5,7 @@ extern "C" {
 #endif
 
 void init_gpm();
-void gpm_read(int *throttle,int *steering, bool *active);
+void gpm_read(int *throttle,int *steering, int *active);
 
 
 #ifdef __cplusplus
